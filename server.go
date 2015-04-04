@@ -1,8 +1,6 @@
 package main
 
 import (
-	"appengine"
-	"appengine/datastore"
 	"encoding/json"
 	"fmt"
 	"github.com/gocraft/web"
@@ -25,21 +23,23 @@ func (c *Context) SetHelloCount(rw web.ResponseWriter, req *web.Request, next we
 
 func (c *Context) VerifyInstagram(rw web.ResponseWriter, req *web.Request) {
 	req.ParseForm()
-	fmt.Fprint(rw, req.Form["hub.challenge"][0])
+	vals, ok := req.Form["hub.challenge"]
+	if !ok || len(vals) == 0 {
+		fmt.Fprint(rw, "Challenge not found: ", vals)
+		return
+	}
+	chal := vals[0]
+	fmt.Fprint(rw, chal)
 }
 
 func (c *Context) StoreNotifications(rw web.ResponseWriter, req *web.Request) {
 	notifications := make([]Notification, 0)
 	decoder := json.NewDecoder(req.Body)
 	decoder.Decode(&notifications)
-	c := appengine.NewContext(r)
-	for _, element := range notifications {
-		// element is the element from someSlice for where we are
-	}
 	fmt.Fprint(rw, notifications)
 }
 
-func init() {
+func main() {
 	router := web.New(Context{}). // Create your router
 					Middleware(web.LoggerMiddleware).             // Use some included middleware
 					Middleware(web.ShowErrorsMiddleware).         // ...
@@ -47,5 +47,5 @@ func init() {
 					Get("/insta", (*Context).VerifyInstagram).    // Add a route
 					Post("/insta", (*Context).StoreNotifications) // Add a route
 
-	http.Handle("/", router)
+	http.ListenAndServe("localhost:3000", router)
 }
