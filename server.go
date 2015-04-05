@@ -49,7 +49,7 @@ func (c *Context) ReceiveNotifications(rw web.ResponseWriter, req *web.Request) 
 	decoder := json.NewDecoder(req.Body)
 	decoder.Decode(&notifications)
 	for _, n := range notifications {
-		err := insert.QueryRow(n.ObjectId, n.ObjectId, n.ChangedAspect, time.Unix(n.TimeChanged, 0)).Scan(&sql.NullInt64{})
+		err := insert.QueryRow(n.SubscriptionId, n.ObjectId, n.ObjectId, n.ChangedAspect, time.Unix(n.TimeChanged, 0)).Scan(&sql.NullInt64{})
 		checkErr(err)
 	}
 	fmt.Fprint(rw, notifications)
@@ -65,7 +65,7 @@ func main() {
 	var err error
 	db, err = sql.Open("postgres", cs)
 	checkErr(err)
-	insert, err = db.Prepare("INSERT INTO \"notifications\" (iid, object, changed_aspect, changed_time) VALUES($1,$2,$3,$4) returning id;")
+	insert, err = db.Prepare("INSERT INTO \"notifications\" (subscription_id, iid, object, changed_aspect, changed_time) VALUES((SELECT id from subscriptions where subscription_id=$1),$2,$3,$4,$5) returning id;")
 	checkErr(err)
 	router := web.New(Context{}).
 		Middleware(web.LoggerMiddleware).
