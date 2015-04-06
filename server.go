@@ -11,9 +11,13 @@ import (
 	"time"
 )
 
+type Pinger interface {
+	Ping() error
+}
+
 var (
 	insertNotification *sql.Stmt
-	db                 *sql.DB
+	pinger             Pinger
 )
 
 type Context struct {
@@ -39,8 +43,10 @@ func (c *Context) VerifyInstagram(rw web.ResponseWriter, req *web.Request) {
 }
 
 func (c *Context) Ping(rw web.ResponseWriter, req *web.Request) {
-	err := db.Ping()
-	checkErr(err)
+	err := pinger.Ping()
+	if err != nil {
+		http.Error(rw, "Ping failed", 500)
+	}
 	fmt.Fprint(rw, "pong")
 }
 
@@ -68,28 +74,40 @@ func getEnvOrDefault(key, def string) string {
 	return env
 }
 
-func initDb() {
+func initDb() *sql.DB {
 	dbhost := getEnvOrDefault("SPOTO_DB_HOST", "localhost")
 	cs := fmt.Sprintf("user=spoto password=%s dbname=spoto sslmode=disable host=%s", "otops", dbhost)
 	var err error
-	db, err = sql.Open("postgres", cs)
+	db, err := sql.Open("postgres", cs)
 	checkErr(err)
 	insertNotification, err = db.Prepare("INSERT INTO \"notifications\" (subscription_id, iid, object, changed_aspect, changed_time) VALUES((SELECT id from subscriptions where subscription_id=$1),$2,$3,$4,$5) returning id;")
 	checkErr(err)
+	pinger = db
+	return db
+}
+
+func initRouter(logger, fatal bool) http.Handler {
+	ctx := web.New(Context{})
+	if logger {
+		ctx = ctx.Middleware(web.LoggerMiddleware)
+	}
+	if fatal {
+		ctx = ctx.Middleware(web.ShowErrorsMiddleware)
+	}
+	return ctx.Get("/insta", (*Context).VerifyInstagram).
+		Get("/ping", (*Context).Ping).
+		Post("/insta", (*Context).ReceiveNotifications)
 }
 
 func main() {
-	initDb()
+	db := initDb()
 	defer db.Close()
-	router := web.New(Context{}).
-		Middleware(web.LoggerMiddleware).
-		Middleware(web.ShowErrorsMiddleware).
-		Get("/insta", (*Context).VerifyInstagram).
-		Get("/ping", (*Context).Ping).
-		Post("/insta", (*Context).ReceiveNotifications)
+
 	host := getEnvOrDefault("SPOTO_HOST", "localhost")
 	port := getEnvOrDefault("SPOTO_PORT", "3000")
 	bindTo := fmt.Sprintf("%s:%s", host, port)
+
+	router := initRouter(true, true)
 	http.ListenAndServe(bindTo, router)
 }
 
