@@ -44,7 +44,7 @@ func (c *Context) Ping(rw web.ResponseWriter, req *web.Request) {
 	fmt.Fprint(rw, "pong")
 }
 
-func saveNotification(n Notification) {
+func process(n Notification) {
 	err := insertNotification.QueryRow(n.SubscriptionId, n.ObjectId, n.ObjectId, n.ChangedAspect, time.Unix(n.TimeChanged, 0)).Scan(&sql.NullInt64{})
 	if err != nil {
 		fmt.Printf("Failed on insert: %s\n", err)
@@ -56,29 +56,41 @@ func (c *Context) ReceiveNotifications(rw web.ResponseWriter, req *web.Request) 
 	decoder := json.NewDecoder(req.Body)
 	decoder.Decode(&notifications)
 	for _, n := range notifications {
-		go saveNotification(n)
+		go process(n)
 	}
 }
 
-func main() {
-	dbhost := os.Getenv("SPOTO_DB_HOST")
-	if len(dbhost) == 0 {
-		dbhost = "localhost"
+func getEnvOrDefault(key, def string) string {
+	env := os.Getenv(key)
+	if len(env) == 0 {
+		env = def
 	}
+	return env
+}
+
+func initDb() {
+	dbhost := getEnvOrDefault("SPOTO_DB_HOST", "localhost")
 	cs := fmt.Sprintf("user=spoto password=%s dbname=spoto sslmode=disable host=%s", "otops", dbhost)
-	fmt.Println(cs)
 	var err error
 	db, err = sql.Open("postgres", cs)
 	checkErr(err)
 	insertNotification, err = db.Prepare("INSERT INTO \"notifications\" (subscription_id, iid, object, changed_aspect, changed_time) VALUES((SELECT id from subscriptions where subscription_id=$1),$2,$3,$4,$5) returning id;")
 	checkErr(err)
+}
+
+func main() {
+	initDb()
+	defer db.Close()
 	router := web.New(Context{}).
 		Middleware(web.LoggerMiddleware).
 		Middleware(web.ShowErrorsMiddleware).
 		Get("/insta", (*Context).VerifyInstagram).
 		Get("/ping", (*Context).Ping).
 		Post("/insta", (*Context).ReceiveNotifications)
-	http.ListenAndServe("localhost:3000", router)
+	host := getEnvOrDefault("SPOTO_HOST", "localhost")
+	port := getEnvOrDefault("SPOTO_PORT", "3000")
+	bindTo := fmt.Sprintf("%s:%s", host, port)
+	http.ListenAndServe(bindTo, router)
 }
 
 func checkErr(err error) {
