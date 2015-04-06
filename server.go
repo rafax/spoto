@@ -12,8 +12,8 @@ import (
 )
 
 var (
-	insert *sql.Stmt
-	db     *sql.DB
+	insertNotification *sql.Stmt
+	db                 *sql.DB
 )
 
 type Context struct {
@@ -34,8 +34,8 @@ func (c *Context) VerifyInstagram(rw web.ResponseWriter, req *web.Request) {
 		fmt.Fprint(rw, "Challenge not found: ", vals)
 		return
 	}
-	chal := vals[0]
-	fmt.Fprint(rw, chal)
+	challenge := vals[0]
+	fmt.Fprint(rw, challenge)
 }
 
 func (c *Context) Ping(rw web.ResponseWriter, req *web.Request) {
@@ -44,15 +44,20 @@ func (c *Context) Ping(rw web.ResponseWriter, req *web.Request) {
 	fmt.Fprint(rw, "pong")
 }
 
+func saveNotification(n Notification) {
+	err := insertNotification.QueryRow(n.SubscriptionId, n.ObjectId, n.ObjectId, n.ChangedAspect, time.Unix(n.TimeChanged, 0)).Scan(&sql.NullInt64{})
+	if err != nil {
+		fmt.Printf("Failed on insert: %s\n", err)
+	}
+}
+
 func (c *Context) ReceiveNotifications(rw web.ResponseWriter, req *web.Request) {
 	notifications := make([]Notification, 0)
 	decoder := json.NewDecoder(req.Body)
 	decoder.Decode(&notifications)
 	for _, n := range notifications {
-		err := insert.QueryRow(n.SubscriptionId, n.ObjectId, n.ObjectId, n.ChangedAspect, time.Unix(n.TimeChanged, 0)).Scan(&sql.NullInt64{})
-		checkErr(err)
+		go saveNotification(n)
 	}
-	fmt.Fprint(rw, notifications)
 }
 
 func main() {
@@ -65,7 +70,7 @@ func main() {
 	var err error
 	db, err = sql.Open("postgres", cs)
 	checkErr(err)
-	insert, err = db.Prepare("INSERT INTO \"notifications\" (subscription_id, iid, object, changed_aspect, changed_time) VALUES((SELECT id from subscriptions where subscription_id=$1),$2,$3,$4,$5) returning id;")
+	insertNotification, err = db.Prepare("INSERT INTO \"notifications\" (subscription_id, iid, object, changed_aspect, changed_time) VALUES((SELECT id from subscriptions where subscription_id=$1),$2,$3,$4,$5) returning id;")
 	checkErr(err)
 	router := web.New(Context{}).
 		Middleware(web.LoggerMiddleware).
