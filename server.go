@@ -17,6 +17,7 @@ type Pinger interface {
 
 var (
 	insertNotification *sql.Stmt
+	countNotifications *sql.Stmt
 	pinger             Pinger
 )
 
@@ -50,10 +51,19 @@ func (c *Context) Ping(rw web.ResponseWriter, req *web.Request) {
 	fmt.Fprint(rw, "pong")
 }
 
+func (c *Context) Stats(rw web.ResponseWriter, req *web.Request) {
+	var cnt int
+	err := countNotifications.QueryRow().Scan(&cnt)
+	if err != nil {
+		http.Error(rw, "Count failed", 500)
+	}
+	fmt.Fprint(rw, "Notifications: ", cnt)
+}
+
 func process(n Notification) {
 	err := insertNotification.QueryRow(n.SubscriptionId, n.ObjectId, n.ObjectId, n.ChangedAspect, time.Unix(n.TimeChanged, 0)).Scan(&sql.NullInt64{})
 	if err != nil {
-		fmt.Printf("Failed on insert: %s\n", err)
+		fmt.Printf("Failed on insert: %d\n", err)
 	}
 }
 
@@ -82,6 +92,8 @@ func initDb() *sql.DB {
 	checkErr(err)
 	insertNotification, err = db.Prepare("INSERT INTO \"notifications\" (subscription_id, iid, object, changed_aspect, changed_time) VALUES((SELECT id from subscriptions where subscription_id=$1),$2,$3,$4,$5) returning id;")
 	checkErr(err)
+	countNotifications, err = db.Prepare("SELECT COUNT(*) FROM \"notifications\"")
+	checkErr(err)
 	pinger = db
 	return db
 }
@@ -96,7 +108,8 @@ func initRouter(logger, fatal bool) http.Handler {
 	}
 	return ctx.Get("/insta", (*Context).VerifyInstagram).
 		Get("/ping", (*Context).Ping).
-		Post("/insta", (*Context).ReceiveNotifications)
+		Post("/insta", (*Context).ReceiveNotifications).
+		Get("/stats", (*Context).Stats)
 }
 
 func main() {

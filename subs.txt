@@ -32,3 +32,13 @@ curl -F 'client_id=437d47053b9149a59770c6e391ed4a48' \
      -F 'callback_url=http://spoto.gajdulewicz.com/insta' \
      https://api.instagram.com/v1/subscriptions
 {"meta":{"code":200},"data":{"object":"geography","object_id":"12010604","aspect":"media","callback_url":"http:\/\/spoto.gajdulewicz.com\/insta","type":"subscription","id":"17533278"}}%
+
+curl -F 'client_id=437d47053b9149a59770c6e391ed4a48' \
+     -F 'client_secret=99241e41ccbc420a9cce0c5796e34e21' \
+     -F 'object=geography' \
+     -F 'aspect=media' \
+     -F 'lat=52.229676' \
+     -F 'lng=21.012229' \
+     -F 'radius=5000' \
+     -F 'callback_url=http://spoto.gajdulewicz.com/insta' \
+     https://api.instagram.com/v1/subscriptions
