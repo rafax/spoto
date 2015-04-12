@@ -4,72 +4,94 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"github.com/gocraft/web"
-	_ "github.com/lib/pq"
 	"net/http"
 	"os"
+	"runtime"
+	"strconv"
 	"time"
+
+	"github.com/codegangsta/negroni"
+
+	"github.com/julienschmidt/httprouter"
+	_ "github.com/lib/pq"
 )
 
-type Pinger interface {
+type pinger interface {
 	Ping() error
 }
 
 var (
 	insertNotification *sql.Stmt
 	countNotifications *sql.Stmt
-	pinger             Pinger
+	p                  pinger
 )
 
-type Context struct {
-}
-
-type Notification struct {
-	SubscriptionId string `json:"subscription_id"`
-	ObjectId       string `json:"object_id"`
+type notification struct {
+	SubscriptionID string `json:"subscription_id"`
+	ObjectID       string `json:"object_id"`
 	Object         string `json:"object"`
 	ChangedAspect  string `json:"changed_aspect"`
 	TimeChanged    int64  `json:"time"`
 }
 
-func (c *Context) VerifyInstagram(rw web.ResponseWriter, req *web.Request) {
-	req.ParseForm()
-	vals, ok := req.Form["hub.challenge"]
+func verifyInstagram(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	r.ParseForm()
+	vals, ok := r.Form["hub.challenge"]
 	if !ok || len(vals) == 0 {
-		fmt.Fprint(rw, "Challenge not found: ", vals)
+		fmt.Fprint(w, "Challenge not found: ", vals)
 		return
 	}
 	challenge := vals[0]
-	fmt.Fprint(rw, challenge)
+	fmt.Fprint(w, challenge)
 }
 
-func (c *Context) Ping(rw web.ResponseWriter, req *web.Request) {
-	err := pinger.Ping()
+func ping(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
+	err := p.Ping()
 	if err != nil {
-		http.Error(rw, "Ping failed", 500)
+		http.Error(w, "Ping failed", 500)
 	}
-	fmt.Fprint(rw, "pong")
+	fmt.Fprint(w, "pong")
 }
 
-func (c *Context) Stats(rw web.ResponseWriter, req *web.Request) {
+func sleep(w http.ResponseWriter, _ *http.Request, p httprouter.Params) {
+	s := p.ByName("sleep")
+	sleep, _ := strconv.Atoi(s)
+	time.Sleep(time.Duration(sleep) * time.Millisecond)
+	fmt.Fprint(w, "Slept for ", sleep)
+}
+
+func fib(n int) int {
+	if n <= 2 {
+		return 1
+	}
+	return fib(n-1) + fib(n-2)
+}
+
+func fibonacci(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+	nstr := p.ByName("n")
+	n, _ := strconv.Atoi(nstr)
+	fmt.Fprint(w, "", fib(n))
+}
+
+func stats(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	var cnt int
 	err := countNotifications.QueryRow().Scan(&cnt)
 	if err != nil {
-		http.Error(rw, "Count failed", 500)
+		http.Error(w, "Count failed", 500)
 	}
-	fmt.Fprint(rw, "Notifications: ", cnt)
+	fmt.Fprint(w, "Notifications: ", cnt)
 }
 
-func process(n Notification) {
-	err := insertNotification.QueryRow(n.SubscriptionId, n.ObjectId, n.ObjectId, n.ChangedAspect, time.Unix(n.TimeChanged, 0)).Scan(&sql.NullInt64{})
+func process(n notification) {
+	err := insertNotification.QueryRow(n.SubscriptionID, n.ObjectID, n.Object, n.ChangedAspect, time.Unix(n.TimeChanged, 0)).Scan(&sql.NullInt64{})
 	if err != nil {
-		fmt.Printf("Failed on insert: %d\n", err)
+		fmt.Printf("Failed on insert: %v\n", err)
 	}
 }
 
-func (c *Context) ReceiveNotifications(rw web.ResponseWriter, req *web.Request) {
-	notifications := make([]Notification, 0)
-	decoder := json.NewDecoder(req.Body)
+func receiveNotifications(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	var notifications []notification
+	decoder := json.NewDecoder(r.Body)
 	decoder.Decode(&notifications)
 	for _, n := range notifications {
 		go process(n)
@@ -94,25 +116,23 @@ func initDb() *sql.DB {
 	checkErr(err)
 	countNotifications, err = db.Prepare("SELECT COUNT(*) FROM \"notifications\"")
 	checkErr(err)
-	pinger = db
+	p = db
 	return db
 }
 
 func initRouter(logger, fatal bool) http.Handler {
-	ctx := web.New(Context{})
-	if logger {
-		ctx = ctx.Middleware(web.LoggerMiddleware)
-	}
-	if fatal {
-		ctx = ctx.Middleware(web.ShowErrorsMiddleware)
-	}
-	return ctx.Get("/insta", (*Context).VerifyInstagram).
-		Get("/ping", (*Context).Ping).
-		Post("/insta", (*Context).ReceiveNotifications).
-		Get("/stats", (*Context).Stats)
+	router := httprouter.New()
+	router.GET("/insta", verifyInstagram)
+	router.GET("/ping", ping)
+	router.POST("/insta", receiveNotifications)
+	router.GET("/stats", stats)
+	router.GET("/sleep/:sleep", sleep)
+	router.GET("/fib/:n", fibonacci)
+	return router
 }
 
 func main() {
+	runtime.GOMAXPROCS(runtime.NumCPU())
 	db := initDb()
 	defer db.Close()
 
@@ -120,8 +140,12 @@ func main() {
 	port := getEnvOrDefault("SPOTO_PORT", "3000")
 	bindTo := fmt.Sprintf("%s:%s", host, port)
 
-	router := initRouter(true, true)
-	http.ListenAndServe(bindTo, router)
+	router := initRouter(false, false)
+	n := negroni.New(
+		negroni.NewRecovery(),
+		negroni.NewLogger())
+	n.UseHandler(router)
+	n.Run(bindTo)
 }
 
 func checkErr(err error) {
