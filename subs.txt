@@ -42,3 +42,5 @@ curl -F 'client_id=437d47053b9149a59770c6e391ed4a48' \
      -F 'radius=5000' \
      -F 'callback_url=http://spoto.gajdulewicz.com/insta' \
      https://api.instagram.com/v1/subscriptions
+
+{"meta":{"code":200},"data":{"object":"geography","object_id":"12029147","aspect":"media","callback_url":"http:\/\/spoto.gajdulewicz.com\/insta","type":"subscription","id":"17553633"}}%
