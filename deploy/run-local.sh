@@ -1,0 +1,1 @@
+docker run --rm -p 3000:3000 -ie "SPOTO_DB_HOST=192.168.0.11" -e "SPOTO_HOST=0.0.0.0" -t spoto
