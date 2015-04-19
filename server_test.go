@@ -3,7 +3,6 @@ package main
 import (
 	"errors"
 	"fmt"
-	"net/http"
 
 	"net/http/httptest"
 	"testing"
@@ -18,15 +17,6 @@ func (p fakePinger) Ping() error {
 		return errors.New("HAHA")
 	}
 	return nil
-}
-
-func TestVerify(t *testing.T) {
-	r, _ := http.NewRequest("GET", "http://spoto.gajdulewicz.com/insta?hub.challenge=foo", nil)
-	rec := httptest.NewRecorder()
-	verifyInstagram(rec, r, nil)
-	if fmt.Sprintf("%s", rec.Body) != "foo" {
-		t.Error("Failed")
-	}
 }
 
 func TestPongWhenPingSuccessful(t *testing.T) {

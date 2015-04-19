@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
@@ -9,25 +8,6 @@ import (
 	"github.com/codegangsta/negroni"
 	"github.com/julienschmidt/httprouter"
 )
-
-type notification struct {
-	SubscriptionID string `json:"subscription_id"`
-	ObjectID       string `json:"object_id"`
-	Object         string `json:"object"`
-	ChangedAspect  string `json:"changed_aspect"`
-	TimeChanged    int64  `json:"time"`
-}
-
-func verifyInstagram(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-	r.ParseForm()
-	vals, ok := r.Form["hub.challenge"]
-	if !ok || len(vals) == 0 {
-		fmt.Fprint(w, "Challenge not found: ", vals)
-		return
-	}
-	challenge := vals[0]
-	fmt.Fprint(w, challenge)
-}
 
 func ping(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
 	err := p.Ping()
@@ -38,27 +18,15 @@ func ping(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
 }
 
 func stats(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-	var cnt int
-	err := countNotifications.QueryRow().Scan(&cnt)
+	cnt, err := notificationCount()
 	if err != nil {
 		http.Error(w, "Count failed", 500)
 	}
 	fmt.Fprint(w, "Notifications: ", cnt)
 }
 
-func receiveNotifications(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-	var notifications []notification
-	decoder := json.NewDecoder(r.Body)
-	decoder.Decode(&notifications)
-	for _, n := range notifications {
-		go insert(n)
-	}
-}
-
 func initRouter() http.Handler {
 	router := httprouter.New()
-	router.GET("/insta", verifyInstagram)
-	router.POST("/insta", receiveNotifications)
 	router.GET("/ping", ping)
 	router.GET("/stats", stats)
 	return router
