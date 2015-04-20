@@ -10,8 +10,25 @@ import (
 	"github.com/mgutz/dat/v1/sqlx-runner"
 )
 
-type pinger interface {
-	Ping() error
+func insert(media Media) error {
+	_, err := conn.InsertInto("media").
+		Columns("iid", "document", "created_at", "subscription_id").
+		Blacklist("id").
+		Record(media).
+		Exec()
+	return err
+}
+
+func notificationCount() (int, error) {
+	var cnt int
+	err := conn.SQL("SELECT COUNT(*) FROM media").QueryScalar(&cnt)
+	return cnt, err
+}
+
+func getSubscription(sid string) Subscription {
+	sub := Subscription{}
+	conn.Select("*").From("subscriptions").Where("id = $1", sid).QueryStruct(&sub)
+	return sub
 }
 
 var (
@@ -22,8 +39,8 @@ var (
 // Media represents a single image or video on Instagram
 type Media struct {
 	ID             int       `db:"id"`
-	IID            int       `db:"iid"`
-	MediaJSON      string    `db:"document"`
+	IID            string    `db:"iid"`
+	MediaJSON      dat.JSON  `db:"document"`
 	CreatedAt      time.Time `db:"created_at"`
 	SubscriptionID int       `db:"subscription_id"`
 }
@@ -32,9 +49,13 @@ type Media struct {
 type Subscription struct {
 	ID     int     `db:"id"`
 	Name   string  `db:"name"`
-	Lat    float32 `db:"lat"`
-	Long   float32 `db:"long"`
-	Radius int     `db:"radius"`
+	Lat    float64 `db:"lat"`
+	Lng    float64 `db:"long"`
+	Radius float64 `db:"radius"`
+}
+
+type pinger interface {
+	Ping() error
 }
 
 func initDb() *sql.DB {
@@ -46,21 +67,4 @@ func initDb() *sql.DB {
 	dat.EnableInterpolation = true
 	conn = runner.NewConnection(db, "postgres")
 	return db
-}
-
-func insert(media []Media) {
-	b := conn.InsertInto("media").Columns("iid", "document", "created_at", "subscription_id").Blacklist("id")
-	for _, m := range media {
-		b.Record(m)
-	}
-	_, err := b.Exec()
-	if err != nil {
-		fmt.Printf("Failed on insert: %v\n", err)
-	}
-}
-
-func notificationCount() (int, error) {
-	var cnt int
-	err := conn.SQL("SELECT COUNT(*) FROM media").QueryScalar(&cnt)
-	return cnt, err
 }
