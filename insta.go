@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"time"
 
 	"github.com/carbocation/go-instagram/instagram"
@@ -15,30 +14,33 @@ func initClient() {
 	client.ClientID = "437d47053b9149a59770c6e391ed4a48"
 }
 
-func doFetch(p instagram.Parameters, res chan *Media, sid int) error {
-	fmt.Printf("Starting fetch for %v\n", p)
+func doFetch(p instagram.Parameters, res chan *Media, stop chan struct{}, sid int) error {
 	var err error
 	im, _, err := client.Media.Search(&p)
 	if err != nil {
 		return err
 	}
 	for _, m := range toMedia(im, sid) {
-		res <- &m
-		fmt.Print(".")
+		select {
+		case <-stop:
+			close(stop)
+			return nil
+		case res <- &m:
+		}
 	}
 	if len(im) > 0 {
 		min, _ := timeRange(im)
 		if time.Now().Add(-7*24*time.Hour).Unix() < min {
 			p.MaxTimestamp = min
-			err = doFetch(p, res, sid)
+			err = doFetch(p, res, stop, sid)
 		}
 	}
 	return err
 }
 
-func fetchMedia(sub Subscription, res chan *Media) error {
+func fetchMedia(sub Subscription, res chan *Media, stop chan struct{}) error {
 	params := instagram.Parameters{Lat: sub.Lat, Lng: sub.Lng, Distance: sub.Radius}
-	err := doFetch(params, res, sub.ID)
+	err := doFetch(params, res, stop, sub.ID)
 	close(res)
 	return err
 }

@@ -10,13 +10,19 @@ import (
 	"github.com/mgutz/dat/v1/sqlx-runner"
 )
 
-func insert(media Media) error {
-	_, err := conn.InsertInto("media").
+func insert(media Media) (bool, error) {
+	var exists int64
+	conn.Select("1").From("media").Where("iid = $1", media.IID).QueryScalar(&exists)
+	if exists > 0 {
+		return false, nil
+	}
+	_, err := conn.Insect("media").
 		Columns("iid", "document", "created_at", "subscription_id").
 		Blacklist("id").
 		Record(media).
+		Where("iid = $1", media.IID).
 		Exec()
-	return err
+	return true, err
 }
 
 func notificationCount() (int, error) {

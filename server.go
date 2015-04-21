@@ -11,6 +11,10 @@ import (
 	"github.com/julienschmidt/httprouter"
 )
 
+const (
+	StopAfterFailedInserts = 50
+)
+
 func ping(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
 	err := p.Ping()
 	if err != nil {
@@ -28,16 +32,33 @@ func stats(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 }
 
 func fetch(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
-	var cnt int
+	failed := 0
+	counter := 0
 	sid := p.ByName("sid")
 	sub := getSubscription(sid)
 	fetchQueue := make(chan *Media)
-	go fetchMedia(sub, fetchQueue)
+	stop := make(chan struct{})
+	go fetchMedia(sub, fetchQueue, stop)
 	for m := range fetchQueue {
-		insert(*m)
-		cnt++
+		new, err := insert(*m)
+		if err != nil {
+			fmt.Println("Error encountered %v when inserting", err)
+		}
+		if !new {
+			failed++
+			if failed == StopAfterFailedInserts {
+				stop <- struct{}{}
+				fmt.Printf("Stopping after %d, fetched %d\n", failed, counter)
+			}
+		} else {
+			if failed > 0 {
+				fmt.Printf("Found a new media after %d invalid", failed)
+			}
+			failed = 0
+			counter++
+		}
 	}
-	fmt.Fprintf(w, "Written %d\n", cnt)
+	fmt.Fprintf(w, "Fetch completed\n")
 }
 
 func initAPI() *negroni.Negroni {
