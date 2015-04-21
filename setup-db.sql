@@ -1,3 +1,5 @@
+#CREATE DATABASE spoto OWNER spoto  ENCODING 'UTF-8' template template0;
+
 CREATE TABLE "public"."media" (
     "id" serial NOT NULL,
     "iid" text NOT NULL,
