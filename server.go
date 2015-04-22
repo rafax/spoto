@@ -48,17 +48,15 @@ func fetch(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 			failed++
 			if failed == StopAfterFailedInserts {
 				stop <- struct{}{}
-				fmt.Printf("Stopping after %d, fetched %d\n", failed, counter)
 			}
 		} else {
 			if failed > 0 {
-				fmt.Printf("Found a new media after %d invalid", failed)
 			}
 			failed = 0
 			counter++
 		}
 	}
-	fmt.Fprintf(w, "Fetch completed\n")
+	fmt.Fprintf(w, "Fetch completed, fetched %d\n", counter)
 }
 
 func initAPI() *negroni.Negroni {
