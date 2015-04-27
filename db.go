@@ -25,10 +25,18 @@ func insert(media Media) (bool, error) {
 	return true, err
 }
 
-func notificationCount() (int, error) {
-	var cnt int
-	err := conn.SQL("SELECT COUNT(*) FROM media").QueryScalar(&cnt)
-	return cnt, err
+func notificationCount() ([]byte, error) {
+	json, err := conn.SQL(`
+	SELECT subscription_id,
+	       s.name,
+	       COUNT(iid)
+	FROM media m
+	JOIN subscriptions s ON m.subscription_id = s.id
+	GROUP BY subscription_id,
+	         s.name
+	ORDER BY subscription_id
+		`).QueryJSON()
+	return json, err
 }
 
 func getSubscription(sid string) Subscription {
