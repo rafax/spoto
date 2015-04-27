@@ -12,6 +12,8 @@ import (
 )
 
 const (
+	// StopAfterFailedInserts is the number of failed inserts after which we will stop fetching from Instagram.
+	// Inserts fail when the image already exists, 50 was chosen to allow for images that are fetched out of order.
 	StopAfterFailedInserts = 50
 )
 
@@ -26,9 +28,9 @@ func ping(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
 func stats(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	cnt, err := notificationCount()
 	if err != nil {
-		http.Error(w, "Count failed", 500)
+		http.Error(w, err.Error(), 500)
 	}
-	fmt.Fprint(w, "Notifications: ", cnt)
+	fmt.Fprint(w, "Notifications: ", string(cnt))
 }
 
 func fetch(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
@@ -42,7 +44,7 @@ func fetch(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 	for m := range fetchQueue {
 		new, err := insert(*m)
 		if err != nil {
-			fmt.Println("Error encountered %v when inserting", err)
+			fmt.Printf("Error encountered %v when inserting\n", err)
 		}
 		if !new {
 			failed++
@@ -62,7 +64,7 @@ func fetch(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 func initAPI() *negroni.Negroni {
 	n := negroni.New(
 		negroni.NewRecovery(),
-		negroni.NewLogger())
+		negroni.NewLogger(), negroni.NewStatic(http.Dir("ui")))
 	router := httprouter.New()
 	router.GET("/ping", ping)
 	router.GET("/stats", stats)
