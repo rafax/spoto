@@ -39,10 +39,16 @@ func notificationCount() ([]byte, error) {
 	return json, err
 }
 
-func getSubscription(sid string) Subscription {
+func getSubscription(sid int) Subscription {
 	sub := Subscription{}
 	conn.Select("*").From("subscriptions").Where("id = $1", sid).QueryStruct(&sub)
 	return sub
+}
+
+func getSubscriptions() []Subscription {
+	subs := make([]Subscription, 0)
+	conn.Select("*").From("subscriptions").QueryStructs(&subs)
+	return subs
 }
 
 var (

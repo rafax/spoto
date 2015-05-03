@@ -34,7 +34,35 @@ func stats(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	fmt.Fprint(w, "Notifications: ", string(cnt))
 }
 
-func fetchMediaForSubscription(sid string, stopAfter int) int {
+func fetch(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+	sid := p.ByName("sid")
+	subId, _ := strconv.Atoi(sid)
+	stopAfter := parseStopAfter(r)
+	counter := fetchMediaForSubscription(subId, stopAfter)
+	fmt.Fprintf(w, "Fetch completed, fetched %d\n", counter)
+}
+
+// Parse stopAfter param to int or return default
+func parseStopAfter(r *http.Request) int {
+	r.ParseForm()
+	stopAfter := StopAfterFailedInserts
+	v := r.FormValue("stopAfter")
+	if v != "" {
+		sa, err := strconv.Atoi(v)
+		if err == nil {
+			stopAfter = sa
+		}
+	}
+	return stopAfter
+}
+
+func fetchAll(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+	stopAfter := parseStopAfter(r)
+	fetchedForSub := fetchMediaForAllSubscriptions(stopAfter)
+	fmt.Fprintf(w, "Fetch completed, fetched %d\n", fetchedForSub)
+}
+
+func fetchMediaForSubscription(sid int, stopAfter int) int {
 	sub := getSubscription(sid)
 	failed := 0
 	counter := 0
@@ -59,19 +87,13 @@ func fetchMediaForSubscription(sid string, stopAfter int) int {
 	return counter
 }
 
-func fetch(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
-	sid := p.ByName("sid")
-	r.ParseForm()
-	stopAfter := StopAfterFailedInserts
-	v := r.FormValue("stopAfter")
-	if v != "" {
-		sa, err := strconv.Atoi(v)
-		if err == nil {
-			stopAfter = sa
-		}
+func fetchMediaForAllSubscriptions(stopAfter int) map[int]int {
+	subs := getSubscriptions()
+	counts := make(map[int]int)
+	for _, sub := range subs {
+		counts[sub.ID] = fetchMediaForSubscription(sub.ID, stopAfter)
 	}
-	counter := fetchMediaForSubscription(sid, stopAfter)
-	fmt.Fprintf(w, "Fetch completed, fetched %d\n", counter)
+	return counts
 }
 
 func initAPI() *negroni.Negroni {
@@ -82,6 +104,7 @@ func initAPI() *negroni.Negroni {
 	router.GET("/ping", ping)
 	router.GET("/stats", stats)
 	router.GET("/fetch/:sid", fetch)
+	router.GET("/fetch-all", fetchAll)
 	n.UseHandler(router)
 	return n
 }
