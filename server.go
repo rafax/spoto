@@ -49,7 +49,6 @@ func fetchMediaForSubscription(sid string, stopAfter int) int {
 		if !new {
 			failed++
 			if failed == stopAfter {
-				fmt.Printf("Stopping after %v\n", stopAfter)
 				stop <- struct{}{}
 			}
 		} else {
