@@ -52,8 +52,6 @@ func fetch(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 				stop <- struct{}{}
 			}
 		} else {
-			if failed > 0 {
-			}
 			failed = 0
 			counter++
 		}
