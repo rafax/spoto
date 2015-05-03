@@ -34,7 +34,7 @@ func stats(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	fmt.Fprint(w, "Notifications: ", string(cnt))
 }
 
-func fetchMediaForSubscription(sid string, stopAfter int) int {
+func fetchMediaForSubscription(sid int, stopAfter int) int {
 	sub := getSubscription(sid)
 	failed := 0
 	counter := 0
@@ -59,8 +59,24 @@ func fetchMediaForSubscription(sid string, stopAfter int) int {
 	return counter
 }
 
+func fetchMediaForAllSubscriptions(stopAfter int) map[int]int {
+	subs := getSubscriptions()
+	counts := make(map[int]int)
+	for _, sub := range subs {
+		counts[sub.ID] = fetchMediaForSubscription(sub.ID, stopAfter)
+	}
+	return counts
+}
+
 func fetch(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 	sid := p.ByName("sid")
+	subId, _ := strconv.Atoi(sid)
+	stopAfter := parseStopAfter(r)
+	counter := fetchMediaForSubscription(subId, stopAfter)
+	fmt.Fprintf(w, "Fetch completed, fetched %d\n", counter)
+}
+
+func parseStopAfter(r *http.Request) int {
 	r.ParseForm()
 	stopAfter := StopAfterFailedInserts
 	v := r.FormValue("stopAfter")
@@ -70,8 +86,13 @@ func fetch(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 			stopAfter = sa
 		}
 	}
-	counter := fetchMediaForSubscription(sid, stopAfter)
-	fmt.Fprintf(w, "Fetch completed, fetched %d\n", counter)
+	return stopAfter
+}
+
+func fetchAll(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+	stopAfter := parseStopAfter(r)
+	fetchedForSub := fetchMediaForAllSubscriptions(stopAfter)
+	fmt.Fprintf(w, "Fetch completed, fetched %d\n", fetchedForSub)
 }
 
 func initAPI() *negroni.Negroni {
@@ -82,6 +103,7 @@ func initAPI() *negroni.Negroni {
 	router.GET("/ping", ping)
 	router.GET("/stats", stats)
 	router.GET("/fetch/:sid", fetch)
+	router.GET("/fetch-all", fetchAll)
 	n.UseHandler(router)
 	return n
 }
