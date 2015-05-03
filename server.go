@@ -34,6 +34,34 @@ func stats(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	fmt.Fprint(w, "Notifications: ", string(cnt))
 }
 
+func fetch(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+	sid := p.ByName("sid")
+	subId, _ := strconv.Atoi(sid)
+	stopAfter := parseStopAfter(r)
+	counter := fetchMediaForSubscription(subId, stopAfter)
+	fmt.Fprintf(w, "Fetch completed, fetched %d\n", counter)
+}
+
+// Parse stopAfter param to int or return default
+func parseStopAfter(r *http.Request) int {
+	r.ParseForm()
+	stopAfter := StopAfterFailedInserts
+	v := r.FormValue("stopAfter")
+	if v != "" {
+		sa, err := strconv.Atoi(v)
+		if err == nil {
+			stopAfter = sa
+		}
+	}
+	return stopAfter
+}
+
+func fetchAll(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+	stopAfter := parseStopAfter(r)
+	fetchedForSub := fetchMediaForAllSubscriptions(stopAfter)
+	fmt.Fprintf(w, "Fetch completed, fetched %d\n", fetchedForSub)
+}
+
 func fetchMediaForSubscription(sid int, stopAfter int) int {
 	sub := getSubscription(sid)
 	failed := 0
@@ -66,33 +94,6 @@ func fetchMediaForAllSubscriptions(stopAfter int) map[int]int {
 		counts[sub.ID] = fetchMediaForSubscription(sub.ID, stopAfter)
 	}
 	return counts
-}
-
-func fetch(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
-	sid := p.ByName("sid")
-	subId, _ := strconv.Atoi(sid)
-	stopAfter := parseStopAfter(r)
-	counter := fetchMediaForSubscription(subId, stopAfter)
-	fmt.Fprintf(w, "Fetch completed, fetched %d\n", counter)
-}
-
-func parseStopAfter(r *http.Request) int {
-	r.ParseForm()
-	stopAfter := StopAfterFailedInserts
-	v := r.FormValue("stopAfter")
-	if v != "" {
-		sa, err := strconv.Atoi(v)
-		if err == nil {
-			stopAfter = sa
-		}
-	}
-	return stopAfter
-}
-
-func fetchAll(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
-	stopAfter := parseStopAfter(r)
-	fetchedForSub := fetchMediaForAllSubscriptions(stopAfter)
-	fmt.Fprintf(w, "Fetch completed, fetched %d\n", fetchedForSub)
 }
 
 func initAPI() *negroni.Negroni {
