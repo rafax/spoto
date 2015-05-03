@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strconv"
 
 	"runtime"
 
@@ -33,11 +34,10 @@ func stats(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	fmt.Fprint(w, "Notifications: ", string(cnt))
 }
 
-func fetch(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+func fetchMediaForSubscription(sid string, stopAfter int) int {
+	sub := getSubscription(sid)
 	failed := 0
 	counter := 0
-	sid := p.ByName("sid")
-	sub := getSubscription(sid)
 	fetchQueue := make(chan *Media)
 	stop := make(chan struct{})
 	go fetchMedia(sub, fetchQueue, stop)
@@ -48,7 +48,7 @@ func fetch(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 		}
 		if !new {
 			failed++
-			if failed == StopAfterFailedInserts {
+			if failed == stopAfter {
 				stop <- struct{}{}
 			}
 		} else {
@@ -56,6 +56,21 @@ func fetch(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 			counter++
 		}
 	}
+	return counter
+}
+
+func fetch(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+	sid := p.ByName("sid")
+	r.ParseForm()
+	stopAfter := StopAfterFailedInserts
+	v := r.FormValue("stopAfter")
+	if v != "" {
+		sa, err := strconv.Atoi(v)
+		if err == nil {
+			stopAfter = sa
+		}
+	}
+	counter := fetchMediaForSubscription(sid, stopAfter)
 	fmt.Fprintf(w, "Fetch completed, fetched %d\n", counter)
 }
 
