@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"time"
 
 	"runtime"
 
@@ -89,9 +90,12 @@ func fetchMediaForSubscription(sid int, stopAfter int) int {
 
 func fetchMediaForAllSubscriptions(stopAfter int) map[int]int {
 	subs := getSubscriptions()
+	fmt.Printf("Found %v subscriptions\n", len(subs))
 	counts := make(map[int]int)
 	for _, sub := range subs {
+		fmt.Printf("%v : Starting fetch for %v id %v\n", time.Now(), sub.Name, sub.ID)
 		counts[sub.ID] = fetchMediaForSubscription(sub.ID, stopAfter)
+		fmt.Printf("%v : Finished fetch for %v id %v\n", time.Now(), sub.Name, sub.ID)
 	}
 	return counts
 }
