@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"time"
 
 	"runtime"
 
@@ -89,17 +90,23 @@ func fetchMediaForSubscription(sid int, stopAfter int) int {
 
 func fetchMediaForAllSubscriptions(stopAfter int) map[int]int {
 	subs := getSubscriptions()
+	fmt.Printf("Starting fetch all at %v, found %v subscriptions\n", time.Now().Format(time.RFC3339), len(subs))
 	counts := make(map[int]int)
 	for _, sub := range subs {
+		start := time.Now()
 		counts[sub.ID] = fetchMediaForSubscription(sub.ID, stopAfter)
+		took := time.Since(start)
+		fmt.Printf("Finished fetch for %v id %v in %v\n", sub.Name, sub.ID, took)
 	}
+	fmt.Printf("Fetched %v\n", counts)
 	return counts
 }
 
 func initAPI() *negroni.Negroni {
 	n := negroni.New(
 		negroni.NewRecovery(),
-		negroni.NewLogger(), negroni.NewStatic(http.Dir("ui")))
+		negroni.NewLogger(),
+		negroni.NewStatic(http.Dir("ui")))
 	router := httprouter.New()
 	router.GET("/ping", ping)
 	router.GET("/stats", stats)
