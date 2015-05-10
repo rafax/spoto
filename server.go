@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"strconv"
@@ -91,7 +90,7 @@ func fetchMediaForSubscription(sid int, stopAfter int) int {
 
 func fetchMediaForAllSubscriptions(stopAfter int) map[int]int {
 	subs := getSubscriptions()
-	fmt.Printf("Found %v subscriptions\n", len(subs))
+	fmt.Printf("Starting fetch all at %v, found %v subscriptions\n", time.Now().Format(time.RFC3339), len(subs))
 	counts := make(map[int]int)
 	for _, sub := range subs {
 		start := time.Now()
@@ -106,7 +105,7 @@ func fetchMediaForAllSubscriptions(stopAfter int) map[int]int {
 func initAPI() *negroni.Negroni {
 	n := negroni.New(
 		negroni.NewRecovery(),
-		&negroni.Logger{log.New(os.Stdout, time.Now().Format(time.RFC3339)+" ", 0)},
+		negroni.NewLogger(),
 		negroni.NewStatic(http.Dir("ui")))
 	router := httprouter.New()
 	router.GET("/ping", ping)
