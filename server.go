@@ -94,10 +94,12 @@ func fetchMediaForAllSubscriptions(stopAfter int) map[int]int {
 	fmt.Printf("Found %v subscriptions\n", len(subs))
 	counts := make(map[int]int)
 	for _, sub := range subs {
-		fmt.Printf("%v : Starting fetch for %v id %v\n", time.Now(), sub.Name, sub.ID)
+		start := time.Now()
 		counts[sub.ID] = fetchMediaForSubscription(sub.ID, stopAfter)
-		fmt.Printf("%v : Finished fetch for %v id %v\n", time.Now(), sub.Name, sub.ID)
+		took := time.Since(start)
+		fmt.Printf("Finished fetch for %v id %v in %v\n", sub.Name, sub.ID, took)
 	}
+	fmt.Printf("Fetched %v\n", counts)
 	return counts
 }
 
