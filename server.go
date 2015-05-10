@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"strconv"
@@ -103,7 +104,8 @@ func fetchMediaForAllSubscriptions(stopAfter int) map[int]int {
 func initAPI() *negroni.Negroni {
 	n := negroni.New(
 		negroni.NewRecovery(),
-		negroni.NewLogger(), negroni.NewStatic(http.Dir("ui")))
+		&negroni.Logger{log.New(os.Stdout, time.Now().Format(time.RFC3339)+" ", 0)},
+		negroni.NewStatic(http.Dir("ui")))
 	router := httprouter.New()
 	router.GET("/ping", ping)
 	router.GET("/stats", stats)
