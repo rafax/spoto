@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log/syslog"
 	"net/http"
 	"os"
 	"strconv"
@@ -11,6 +12,9 @@ import (
 
 	"github.com/codegangsta/negroni"
 	"github.com/julienschmidt/httprouter"
+
+	log "github.com/Sirupsen/logrus"
+	"github.com/Sirupsen/logrus/hooks/syslog"
 )
 
 const (
@@ -37,9 +41,9 @@ func stats(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 
 func fetch(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 	sid := p.ByName("sid")
-	subId, _ := strconv.Atoi(sid)
+	subID, _ := strconv.Atoi(sid)
 	stopAfter := parseStopAfter(r)
-	counter := fetchMediaForSubscription(subId, stopAfter)
+	counter := fetchMediaForSubscription(subID, stopAfter)
 	fmt.Fprintf(w, "Fetch completed, fetched %d\n", counter)
 }
 
@@ -73,7 +77,7 @@ func fetchMediaForSubscription(sid int, stopAfter int) int {
 	for m := range fetchQueue {
 		new, err := insert(*m)
 		if err != nil {
-			fmt.Printf("Error encountered %v when inserting\n", err)
+			log.WithField("err", err).WithField("media", m).Error("Error when inserting")
 		}
 		if !new {
 			failed++
@@ -90,15 +94,22 @@ func fetchMediaForSubscription(sid int, stopAfter int) int {
 
 func fetchMediaForAllSubscriptions(stopAfter int) map[int]int {
 	subs := getSubscriptions()
-	fmt.Printf("Starting fetch all at %v, found %v subscriptions\n", time.Now().Format(time.RFC3339), len(subs))
+	log.WithFields(log.Fields{
+		"subscriptions": subs,
+		"stopAfter":     stopAfter,
+	}).Info("Starting fetch all")
 	counts := make(map[int]int)
 	for _, sub := range subs {
 		start := time.Now()
 		counts[sub.ID] = fetchMediaForSubscription(sub.ID, stopAfter)
 		took := time.Since(start)
-		fmt.Printf("Finished fetch for %v id %v in %v\n", sub.Name, sub.ID, took)
+		log.WithField("sid", sub.ID).WithField("took", took).Info("Finished fetch for")
 	}
-	fmt.Printf("Fetched %v\n", counts)
+	sum := 0
+	for _, v := range counts {
+		sum += v
+	}
+	log.WithField("total", sum).Info("Finished fetch all")
 	return counts
 }
 
@@ -116,6 +127,16 @@ func initAPI() *negroni.Negroni {
 	return n
 }
 
+func initLog() {
+	hook, err := logrus_syslog.NewSyslogHook("udp", "localhost:514", syslog.LOG_INFO, "")
+	if err != nil {
+		log.Error("Unable to connect to local syslog daemon")
+	} else {
+		log.AddHook(hook)
+	}
+	log.SetOutput(os.Stdout)
+}
+
 func main() {
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
@@ -125,6 +146,8 @@ func main() {
 	initClient()
 
 	n := initAPI()
+
+	initLog()
 
 	host := getEnvOrDefault("SPOTO_HOST", "localhost")
 	port := getEnvOrDefault("SPOTO_PORT", "3000")
