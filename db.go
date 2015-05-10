@@ -46,7 +46,7 @@ func getSubscription(sid int) Subscription {
 }
 
 func getSubscriptions() []Subscription {
-	subs := make([]Subscription, 0)
+	var subs []Subscription
 	conn.Select("*").From("subscriptions").QueryStructs(&subs)
 	return subs
 }
