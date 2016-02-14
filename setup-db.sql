@@ -1,3 +1,4 @@
+#CREATE USER spoto NOCREATEDB;
 #CREATE DATABASE spoto OWNER spoto  ENCODING 'UTF-8' template template0;
 
 CREATE TABLE "public"."media" (
@@ -20,3 +21,6 @@ CREATE TABLE "public"."subscriptions" (
 ALTER TABLE "public"."media"
   ADD COLUMN "subscription_id" int NOT NULL,
   ADD FOREIGN KEY ("subscription_id") REFERENCES "public"."subscriptions"("id");
+
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO spoto;
+

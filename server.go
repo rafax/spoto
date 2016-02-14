@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"log/syslog"
 	"net/http"
 	"os"
 	"strconv"
@@ -14,7 +13,6 @@ import (
 	"github.com/julienschmidt/httprouter"
 
 	log "github.com/Sirupsen/logrus"
-	"github.com/Sirupsen/logrus/hooks/syslog"
 )
 
 const (
@@ -127,16 +125,6 @@ func initAPI() *negroni.Negroni {
 	return n
 }
 
-func initLog() {
-	hook, err := logrus_syslog.NewSyslogHook("udp", "localhost:514", syslog.LOG_INFO, "")
-	if err != nil {
-		log.Error("Unable to connect to local syslog daemon")
-	} else {
-		log.AddHook(hook)
-	}
-	log.SetOutput(os.Stdout)
-}
-
 func main() {
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
@@ -147,7 +135,7 @@ func main() {
 
 	n := initAPI()
 
-	initLog()
+	log.SetOutput(os.Stdout)
 
 	host := getEnvOrDefault("SPOTO_HOST", "localhost")
 	port := getEnvOrDefault("SPOTO_PORT", "3000")
